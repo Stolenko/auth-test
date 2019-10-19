@@ -1,9 +1,48 @@
 version: '2'
 services:
+  mysql:
+    image: mariadb:10.4
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    restart: always
+    stop_grace_period: 30s
+    environment: &mysql_config
+      MYSQL_USER: user
+      MYSQL_PASSWORD: pass
+      MYSQL_HOST: mysql
+      MYSQL_DATABASE: db
+      MYSQL_ROOT_PASSWORD: db_root_password
+    volumes:
+    - mysql-data:/var/lib/mysql
+    ports:
+      - 127.0.0.1:3306:3306 # for dev only
   php:
     image: yiisoftware/yii2-php:7.1-apache
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    restart: always
+    stop_grace_period: 30s
+    environment:
+      EMAIL_SERVER: smtp.yandex.ru
+      EMAIL_PORT: 587
+      EMAIL_USER: john-doe
+      EMAIL_PASSWORD: 123456
+      EMAIL_ENCRYPTION: ssl # ssl || tls
+      <<: *mysql_config
     volumes:
-      - ~/.composer-docker/cache:/root/.composer/cache:delegated
-      - ./:/app:delegated
+    - ~/.composer-docker/cache:/root/.composer/cache:delegated
+    - ./:/app:delegated
     ports:
-      - '8000:80'
+    - '8000:80'
+    depends_on:
+    - mysql
+
+volumes:
+  mysql-data:
+    driver: local
