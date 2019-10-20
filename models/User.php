@@ -2,73 +2,115 @@
 
 namespace app\models;
 
-class User extends \yii\base\BaseObject implements \yii\web\IdentityInterface
-{
-    public $id;
-    public $username;
-    public $password;
-    public $authKey;
-    public $accessToken;
+use app\dto\UserDto;
+use app\repository\UserRepository;
+use Yii;
+use yii\db\ActiveRecord;
+use yii\web\IdentityInterface;
 
-    private static $users = [
-        '100' => [
-            'id' => '100',
-            'username' => 'admin',
-            'password' => 'admin',
-            'authKey' => 'test100key',
-            'accessToken' => '100-token',
-        ],
-        '101' => [
-            'id' => '101',
-            'username' => 'demo',
-            'password' => 'demo',
-            'authKey' => 'test101key',
-            'accessToken' => '101-token',
-        ],
+/**
+ * Class User
+ * @package app\models
+ * @property int $id [int(11)]
+ * @property string $first_name [varchar(64)]
+ * @property string $last_name [varchar(64)]
+ * @property int $gender [smallint(6)]
+ * @property string $birth_at [datetime]
+ * @property string $phone [varchar(16)]
+ * @property string $email [varchar(255)]
+ * @property string $password_hash [varchar(255)]
+ * @property string $created_at [datetime]
+ * @property string $updated_at [datetime]
+ */
+class User extends ActiveRecord implements IdentityInterface
+{
+    const PASSWORD_LENGTH = 16;
+
+    const GENDER_MAN = 10;
+    const GENDER_WOMAN = 20;
+
+    const GENDERS = [
+        self::GENDER_MAN => 'Man',
+        self::GENDER_WOMAN => 'Woman',
     ];
+
+    public function rules(): array
+    {
+        return [
+            [['first_name', 'last_name', 'gender', 'birth_at', 'phone', 'email'], 'required'],
+            [['first_name', 'last_name', 'phone', 'email'], 'string'],
+            [['birth_at'], 'date', 'format' => 'Y-m-d'],
+            ['email', 'email'],
+            [['phone', 'email'], 'unique'],
+            ['gender', 'in', 'range' => array_keys(self::GENDERS)]
+        ];
+    }
+
+    public function attributeLabels(): array
+    {
+        return [
+            'id' => Yii::t('app', 'ID'),
+            'email' => Yii::t('app', 'Email'),
+            'phone' => Yii::t('app', 'Phone'),
+            'password_hash' => Yii::t('app', 'Password Hash'),
+            'first_name' => Yii::t('app', 'First Name'),
+            'last_name' => Yii::t('app', 'Last Name'),
+            'gender' => Yii::t('app', 'Gender'),
+            'birth_at' => Yii::t('app', 'Birth At'),
+            'created_at' => Yii::t('app', 'Created At'),
+            'updated_at' => Yii::t('app', 'Updated At'),
+        ];
+    }
 
 
     /**
-     * {@inheritdoc}
+     * @param int|string $id
+     * @return null|IdentityInterface
+     * @throws \yii\base\InvalidConfigException
+     * @throws \yii\di\NotInstantiableException
      */
-    public static function findIdentity($id)
+    public static function findIdentity($id): ?IdentityInterface
     {
-        return isset(self::$users[$id]) ? new static(self::$users[$id]) : null;
+        /** @var UserRepository $userRepository */
+        $userRepository = Yii::$container->get(UserRepository::class);
+        return $userRepository->get($id);
     }
 
     /**
-     * {@inheritdoc}
+     * @param string $email
+     * @return User|null
+     * @throws \yii\base\InvalidConfigException
+     * @throws \yii\di\NotInstantiableException
+     */
+    public static function findByEmail(string $email): ?User
+    {
+        /** @var UserRepository $userRepository */
+        $userRepository = Yii::$container->get(UserRepository::class);
+        return $userRepository->findByEmail($email);
+    }
+
+
+    /**
+     * @param string $password
+     * @return bool
+     */
+    public function validatePassword(string $password): bool
+    {
+        return Yii::$app->security->validatePassword($password, $this->password_hash);
+    }
+
+    /**
+     * @param mixed $token
+     * @param null $type
+     * @return null|void|IdentityInterface
      */
     public static function findIdentityByAccessToken($token, $type = null)
     {
-        foreach (self::$users as $user) {
-            if ($user['accessToken'] === $token) {
-                return new static($user);
-            }
-        }
-
-        return null;
+        // TODO: Implement findIdentityByAccessToken() method.
     }
 
     /**
-     * Finds user by username
-     *
-     * @param string $username
-     * @return static|null
-     */
-    public static function findByUsername($username)
-    {
-        foreach (self::$users as $user) {
-            if (strcasecmp($user['username'], $username) === 0) {
-                return new static($user);
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * {@inheritdoc}
+     * @return int|string
      */
     public function getId()
     {
@@ -76,29 +118,36 @@ class User extends \yii\base\BaseObject implements \yii\web\IdentityInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @return string|void
      */
     public function getAuthKey()
     {
-        return $this->authKey;
+        // TODO: Implement getAuthKey() method.
     }
 
     /**
-     * {@inheritdoc}
+     * @param string $authKey
+     * @return bool|void
      */
     public function validateAuthKey($authKey)
     {
-        return $this->authKey === $authKey;
+        // TODO: Implement validateAuthKey() method.
     }
 
     /**
-     * Validates password
-     *
-     * @param string $password password to validate
-     * @return bool if password provided is valid for current user
+     * @param UserDto $userDto
+     * @return User
      */
-    public function validatePassword($password)
+    public static function create(UserDto $userDto): User
     {
-        return $this->password === $password;
+        return new static([
+            'first_name' => $userDto->getFirstName(),
+            'last_name' => $userDto->getLastName(),
+            'gender' => $userDto->getGender(),
+            'birth_at' => $userDto->getBirthAt(),
+            'phone' => $userDto->getPhone(),
+            'email' => $userDto->getEmail(),
+            'password_hash' => $userDto->getPasswordHash()
+        ]);
     }
 }
