@@ -2,7 +2,7 @@ version: '2'
 services:
   mysql:
     image: mariadb:10.4
-    logging:
+    logging: &logging
       driver: "json-file"
       options:
         max-size: "20m"
@@ -19,22 +19,33 @@ services:
     - mysql-data:/var/lib/mysql
     ports:
       - 127.0.0.1:3306:3306 # for dev only
+  rabbit:
+    restart: always
+    logging: *logging
+    image: rabbitmq:3.7-management-alpine
+    volumes:
+    - rabbit-data:/var/lib/rabbitmq
+    ports:
+    - 127.0.0.1:15672:15672
+    - 127.0.0.1:5672:5672
+    environment: &rabbit_config
+      RABBITMQ_HOST: rabbit
+      RABBITMQ_PORT: 5672
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
   php:
     image: yiisoftware/yii2-php:7.1-apache
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "20m"
-        max-file: "5"
+    logging: *logging
     restart: always
     stop_grace_period: 30s
-    environment:
+    environment: &web_config
       EMAIL_SERVER: smtp.yandex.ru
-      EMAIL_PORT: 587
-      EMAIL_USER: john-doe
-      EMAIL_PASSWORD: 123456
+      EMAIL_PORT: 465
+      EMAIL_USER: user
+      EMAIL_PASSWORD: password
       EMAIL_ENCRYPTION: ssl # ssl || tls
       <<: *mysql_config
+      <<: *rabbit_config
     volumes:
     - ~/.composer-docker/cache:/root/.composer/cache:delegated
     - ./:/app:delegated
@@ -42,7 +53,24 @@ services:
     - '8000:80'
     depends_on:
     - mysql
+  queue:
+    image: yiisoftware/yii2-php:7.1-apache
+    restart: always
+    entrypoint: '/app/docker/entrypoint-queue.sh'
+    command: ''
+    logging: *logging
+    depends_on:
+    - rabbit
+    user: "501:501" # change for another UID in your system
+    environment:
+      <<: *mysql_config
+      <<: *rabbit_config
+      <<: *web_config
+    volumes:
+    - .:/app
 
 volumes:
   mysql-data:
+    driver: local
+  rabbit-data:
     driver: local

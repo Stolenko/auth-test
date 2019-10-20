@@ -2,13 +2,14 @@
 
 namespace app\controllers;
 
+use app\models\forms\LoginForm;
+use app\models\forms\RegisterForm;
+use app\usecase\UserRegisterUseCase;
 use Yii;
 use yii\filters\AccessControl;
 use yii\web\Controller;
 use yii\web\Response;
 use yii\filters\VerbFilter;
-use app\models\LoginForm;
-use app\models\ContactForm;
 
 class SiteController extends Controller
 {
@@ -80,8 +81,33 @@ class SiteController extends Controller
             return $this->goBack();
         }
 
-        $model->password = '';
         return $this->render('login', [
+            'model' => $model,
+        ]);
+    }
+
+    /**
+     * @return string|Response
+     * @throws \Throwable
+     * @throws \yii\base\Exception
+     * @throws \yii\base\InvalidConfigException
+     * @throws \yii\di\NotInstantiableException
+     */
+    public function actionRegister()
+    {
+        if (!Yii::$app->user->isGuest) {
+            return $this->goHome();
+        }
+
+        /** @var UserRegisterUseCase $userRegisterUseCase */
+        $userRegisterUseCase = Yii::$container->get(UserRegisterUseCase::class);
+
+        $model = new RegisterForm();
+        if ($model->load(Yii::$app->request->post()) && $model->validate() && $userRegisterUseCase->register($model->getDto())) {
+            return $this->goBack();
+        }
+
+        return $this->render('register', [
             'model' => $model,
         ]);
     }
@@ -96,33 +122,5 @@ class SiteController extends Controller
         Yii::$app->user->logout();
 
         return $this->goHome();
-    }
-
-    /**
-     * Displays contact page.
-     *
-     * @return Response|string
-     */
-    public function actionContact()
-    {
-        $model = new ContactForm();
-        if ($model->load(Yii::$app->request->post()) && $model->contact(Yii::$app->params['adminEmail'])) {
-            Yii::$app->session->setFlash('contactFormSubmitted');
-
-            return $this->refresh();
-        }
-        return $this->render('contact', [
-            'model' => $model,
-        ]);
-    }
-
-    /**
-     * Displays about page.
-     *
-     * @return string
-     */
-    public function actionAbout()
-    {
-        return $this->render('about');
     }
 }
